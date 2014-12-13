@@ -8,79 +8,46 @@ using Microsoft.Data.Entity.Relational.Update;
 using Microsoft.Data.Entity.SqlServer.Update;
 using Microsoft.Framework.ConfigurationModel;
 using Xunit;
+using Microsoft.Data.Entity.Infrastructure;
 
 namespace Microsoft.Data.Entity.SqlServer.Tests.Update
 {
     public class SqlServerModificationCommandBatchFactoryTest
     {
         [Fact]
-        public void Uses_MaxBatchSize_specified_in_configuration()
+        public void Uses_MaxBatchSize_specified_in_dbContextOptions()
         {
-            var configuration = new Configuration
-                {
-                    new MemoryConfigurationSource(
-                        new Dictionary<string, string>
-                            {
-                                { "Data:SqlServer:MaxBatchSize", "1" }
-                            })
-                };
+            var factory = new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator());
+            IDbContextOptions options = new DbContextOptions();
+            options.RawOptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { { "SqlServer:MaxBatchSize", "1" } };
 
-            var factory = new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator(), new[] { configuration });
+            var batch = factory.Create(options);
 
-            var batch = factory.Create();
             Assert.True(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
             Assert.False(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
         }
 
         [Fact]
-        public void MaxBatchSize_configuration_is_optional()
+        public void MaxBatchSize_is_optional()
         {
-            var configuration = new Configuration
-                {
-                    new MemoryConfigurationSource()
-                };
+            var factory = new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator());
+            IDbContextOptions options = new DbContextOptions();
+            options.RawOptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            var factory = new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator(), new[] { configuration });
-
-            var batch = factory.Create();
+            var batch = factory.Create(options);
             Assert.True(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
             Assert.True(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
         }
 
         [Fact]
-        public void Configuration_can_be_empty()
+        public void Throws_on_invalid_MaxBatchSize_specified_in_dbContextOptions()
         {
-            var factory = new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator(), new IConfiguration[0]);
+            var factory = new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator());
+            IDbContextOptions options = new DbContextOptions();
+            options.RawOptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { { "SqlServer:MaxBatchSize", "one" } };
 
-            var batch = factory.Create();
-            Assert.True(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
-            Assert.True(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
-        }
-
-        [Fact]
-        public void Configuration_can_be_null()
-        {
-            var factory = new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator(), null);
-
-            var batch = factory.Create();
-            Assert.True(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
-            Assert.True(factory.AddCommand(batch, new ModificationCommand(new SchemaQualifiedName("T1"), new ParameterNameGenerator(), p => p.SqlServer())));
-        }
-
-        [Fact]
-        public void Throws_on_invalid_MaxBatchSize_specified_in_configuration()
-        {
-            var configuration = new Configuration
-                {
-                    new MemoryConfigurationSource(
-                        new Dictionary<string, string>
-                            {
-                                { "Data:SqlServer:MaxBatchSize", "one" }
-                            })
-                };
-
-            Assert.Equal(Strings.IntegerConfigurationValueFormatError("Data:SqlServer:MaxBatchSize", "one"),
-                Assert.Throws<InvalidOperationException>(() => new SqlServerModificationCommandBatchFactory(new SqlServerSqlGenerator(), new[] { configuration })).Message);
+            Assert.Equal(Strings.IntegerConfigurationValueFormatError("SqlServer:MaxBatchSize", "one"),
+                Assert.Throws<InvalidOperationException>(() => factory.Create(options)).Message);
         }
     }
 }

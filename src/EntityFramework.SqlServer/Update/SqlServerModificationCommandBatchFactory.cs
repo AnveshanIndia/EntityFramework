@@ -2,18 +2,16 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using JetBrains.Annotations;
+using Microsoft.Data.Entity.Infrastructure;
 using Microsoft.Data.Entity.Relational.Update;
-using Microsoft.Framework.ConfigurationModel;
+using Microsoft.Data.Entity.Utilities;
 
 namespace Microsoft.Data.Entity.SqlServer.Update
 {
     public class SqlServerModificationCommandBatchFactory : ModificationCommandBatchFactory
     {
-        private const string MaxBatchSizeConfigurationKey = "Data:SqlServer:MaxBatchSize";
-        private readonly int? _maxBatchSize;
+        private const string MaxBatchSizeConfigurationKey = "SqlServer:MaxBatchSize";
 
         /// <summary>
         ///     This constructor is intended only for use when creating test doubles that will override members
@@ -25,29 +23,28 @@ namespace Microsoft.Data.Entity.SqlServer.Update
         }
 
         public SqlServerModificationCommandBatchFactory(
-            [NotNull] SqlServerSqlGenerator sqlGenerator,
-            [CanBeNull] IEnumerable<IConfiguration> configurations)
+            [NotNull] SqlServerSqlGenerator sqlGenerator)
             : base(sqlGenerator)
         {
-            var configuration = (configurations == null ? null : configurations.FirstOrDefault());
+        }
+
+        public override ModificationCommandBatch Create([NotNull] IDbContextOptions options)
+        {
+            Check.NotNull(options, "options");
 
             string maxBatchSizeString = null;
+            int? maxBatchSize = null;
 
-            if (configuration != null
-                && configuration.TryGet(MaxBatchSizeConfigurationKey, out maxBatchSizeString))
+            if (options.RawOptions.TryGetValue(MaxBatchSizeConfigurationKey, out maxBatchSizeString))
             {
-                int maxBatchSize;
-                if (!Int32.TryParse(maxBatchSizeString, out maxBatchSize))
+                int maxBatchSizeInt;
+                if (!Int32.TryParse(maxBatchSizeString, out maxBatchSizeInt))
                 {
                     throw new InvalidOperationException(Strings.IntegerConfigurationValueFormatError(MaxBatchSizeConfigurationKey, maxBatchSizeString));
                 }
-                _maxBatchSize = maxBatchSize;
+                maxBatchSize = maxBatchSizeInt;
             }
-        }
-
-        public override ModificationCommandBatch Create()
-        {
-            return new SqlServerModificationCommandBatch((SqlServerSqlGenerator)SqlGenerator, _maxBatchSize);
+            return new SqlServerModificationCommandBatch((SqlServerSqlGenerator)SqlGenerator, maxBatchSize);
         }
     }
 }
